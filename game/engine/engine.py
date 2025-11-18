@@ -5,6 +5,8 @@ from typing import Dict, List
 from django.db import transaction
 
 from ..models import Role, Player, Room, RoleAssignment
+from .night_registry import get_handler
+from .role_effects import RoleEffectsMixin
 
 logger = logging.getLogger(__name__)
 
@@ -138,7 +140,7 @@ class NightResolutionError(Exception):
     pass
 
 
-class NightEngine:
+class NightEngine(RoleEffectsMixin):
     """
     Motor para resolver una noche: recorre el room.active_night_queue (lista de nombres de rol)
     y aplica las acciones en orden usando las selecciones provistas por el frontend.
@@ -177,6 +179,22 @@ class NightEngine:
             if role.name == role_name and self.players[pid].is_alive:
                 result.append(self.players[pid])
         return result
+    
+    def get_roles_by_alignment(self, alignment: str) -> List[RoleAssignment]:
+        """Devuelve lista de RoleAssignments con rol de la alineación dada y jugadores vivos."""
+        result = []
+        for pid, rasg in self.r_asgs.items():
+            role = rasg.role
+            if role.alignment.lower() == alignment.lower() and self.players[pid].is_alive:
+                result.append(rasg)
+        return result
+    
+    def get_random_player_excluding(self, exclude_pids: List[str]) -> Player:
+        """Devuelve un jugador aleatorio que no esté en exclude_pids."""
+        candidates = [p for pid, p in self.players.items() if pid not in exclude_pids and p.is_alive]
+        if not candidates:
+            return None
+        return random.choice(candidates)
 
     def is_poisoned(self, player_id: str) -> bool:
         """Comprueba flag persistente (RoleAssignment.is_poisoned) o estado temporal actual."""
@@ -203,6 +221,29 @@ class NightEngine:
             "by": killed_by_pid,
             "reason": reason
         })
+
+    # -------------------------------------------------------
+    #           ⚙️ RESOLVER TODA LA NOCHE
+    # -------------------------------------------------------
+    def resolve_night(self, selections, first_night):
+        queue = (self.room.script.night_order["first_night"]
+                 if first_night else
+                 self.room.script.night_order["other_nights"])
+
+        for role_name in queue:
+            actors = [p for p in self.players.values()
+                      if p.role.name == role_name and p.is_alive]
+
+            for actor in actors:
+                pid = str(actor.id)
+                handler = get_handler(role_name)
+
+                # Si no hay handler o está borracho/poisoned
+                if not handler or self.is_poisoned(pid) or self.state[pid]["drunk"]:
+                    continue
+
+                selection = selections.get(pid, {})
+                handler(self, pid, selection)
 
     # ---------------------------
     # Role handlers
