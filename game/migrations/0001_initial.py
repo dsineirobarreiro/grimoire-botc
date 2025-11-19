@@ -10,7 +10,6 @@ class Migration(migrations.Migration):
     initial = True
 
     dependencies = [
-        ('game', '0001_load_trouble_brewing'),
     ]
 
     operations = [

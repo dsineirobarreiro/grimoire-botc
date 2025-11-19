@@ -31,6 +31,7 @@ ALLOWED_HOSTS = []
 # Application definition
 
 INSTALLED_APPS = [
+    'channels',
     'game',
     'django.contrib.admin',
     'django.contrib.auth',
@@ -67,7 +68,19 @@ TEMPLATES = [
     },
 ]
 
-WSGI_APPLICATION = 'botc.wsgi.application'
+# ASGI
+ASGI_APPLICATION = "botc.asgi.application"
+
+# Channel layer (Redis)
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels_redis.core.RedisChannelLayer",
+        "CONFIG": {
+            "hosts": [("127.0.0.1", 6379)],
+            # Si usas red gestionada: ("redis://:password@host:port/0",)
+        },
+    },
+}
 
 
 # Database

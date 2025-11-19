@@ -175,3 +175,12 @@ class Vote(models.Model):
 
     def __str__(self):
         return f"{self.player.alias} voted {self.voted}"
+
+# ---------------------------------------------------------
+# NIGHT ACTION
+# ---------------------------------------------------------
+class NightAction(models.Model):
+    room = models.ForeignKey(Room, on_delete=models.CASCADE)
+    player = models.ForeignKey(Player, on_delete=models.CASCADE)
+    selection = models.JSONField(default=dict)
+    created_at = models.DateTimeField(auto_now_add=True)
