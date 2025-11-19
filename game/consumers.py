@@ -26,7 +26,7 @@ class RoomConsumer(AsyncJsonWebsocketConsumer):
     """
 
     async def connect(self):
-        self.room_id = self.scope["url_route"]["kwargs"]["room_id"]
+        self.room_id = self.scope["url_route"]["kwargs"]["room_code"]
         self.group_name = _group_name(self.room_id)
 
         # Autorización básica: asegurarnos de que la sala existe

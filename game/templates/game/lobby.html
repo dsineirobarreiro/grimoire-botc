@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Blood on the Clocktower Lobby</title>
+    <style>
+        body { font-family: sans-serif; }
+        #players { margin-top: 20px; }
+        #players li { margin-bottom: 5px; }
+        input { margin-right: 5px; }
+        button { margin-right: 5px; }
+    </style>
+</head>
+<body>
+
+<h1>Blood on the Clocktower</h1>
+
+<div>
+    <button onclick="createRoom()">Crear Sala</button>
+    <input id="roomInput" placeholder="Código de sala"/>
+    <button onclick="joinRoom()">Unirse a Sala</button>
+</div>
+
+<h3>Tu Alias:</h3>
+<input id="aliasInput" placeholder="Introduce tu alias"/>
+<button onclick="setAlias()">Actualizar Alias</button>
+<button onclick="setReady()">Listo</button>
+
+<h3>Jugadores en la Sala:</h3>
+<ul id="players"></ul>
+
+<div id="log" style="margin-top:20px; color: gray;"></div>
+
+<script>
+let socket = null;
+let roomCode = null;
+let players = {}; // {channel_name: {alias: "", ready: false}}
+
+function log(msg) {
+    document.getElementById("log").innerHTML += "<br>" + msg;
+}
+
+// ------------------- API HTTP -------------------
+async function createRoom() {
+    const resp = await fetch('/game/api/create-room/');
+    const data = await resp.json();
+    roomCode = data.room_code;
+    document.getElementById("roomInput").value = roomCode;
+    log("Sala creada: " + roomCode);
+}
+
+// ------------------- WebSocket -------------------
+function joinRoom() {
+    roomCode = document.getElementById("roomInput").value.trim();
+    if (!roomCode) return alert("Introduce un código de sala");
+
+    socket = new WebSocket(`ws://${window.location.host}/ws/rooms/${roomCode}/`);
+
+    socket.onopen = () => log("Conectado a la sala " + roomCode);
+
+    socket.onmessage = (event) => {
+        const data = JSON.parse(event.data);
+        const eventName = data.event;
+        const payload = data.payload;
+
+        // Eventos especiales del lobby
+        if (eventName === "player_joined") {
+            const player = payload.player;
+            players[player] = {alias: player, ready: false};
+            renderPlayers();
+        } else if (eventName === "player_left") {
+            const player = payload.player;
+            delete players[player];
+            renderPlayers();
+        } else if (eventName === "player_ready") {
+            const player = payload.player;
+            if (players[player]) players[player].ready = true;
+            renderPlayers();
+        } else if (eventName === "alias_changed") {
+            const player = payload.player;
+            if (players[player]) players[player].alias = payload.alias;
+            renderPlayers();
+        } else {
+            log("Evento: " + eventName + " → " + JSON.stringify(payload));
+        }
+    };
+
+    socket.onclose = () => log("Desconectado");
+}
+
+function send(event, payload={}) {
+    if (socket && socket.readyState === WebSocket.OPEN) {
+        socket.send(JSON.stringify({event, payload}));
+    }
+}
+
+// ------------------- Lobby Actions -------------------
+function setAlias() {
+    const alias = document.getElementById("aliasInput").value.trim();
+    if (!alias) return alert("Introduce un alias");
+    send("change_alias", {alias});
+}
+
+function setReady() {
+    send("ready");
+}
+
+// ------------------- Render Players -------------------
+function renderPlayers() {
+    const ul = document.getElementById("players");
+    ul.innerHTML = "";
+    for (const ch in players) {
+        const p = players[ch];
+        const li = document.createElement("li");
+        li.textContent = `${p.alias} ${p.ready ? "(Listo)" : ""}`;
+        ul.appendChild(li);
+    }
+}
+</script>
+
+</body>
+</html>

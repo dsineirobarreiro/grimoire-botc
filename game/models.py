@@ -42,7 +42,7 @@ class Script(models.Model):
     roles = models.ManyToManyField(Role, related_name="scripts")
 
     # Night order defined by script (list of role names)
-    night_order = models.JSONField(default=list)
+    night_order = models.JSONField(default=dict)
 
     def __str__(self):
         return self.name
