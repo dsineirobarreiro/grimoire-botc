@@ -171,6 +171,19 @@ class NightEngine(RoleEffectsMixin):
     # ---------------------------
     # Helpers
     # ---------------------------
+    def get_state_for_player(self, player_id: str) -> Dict:
+        """Devuelve el estado temporal de un jugador."""
+        return self.state.get(player_id, {})
+    
+    def set_state_for_player(self, player_id: str, key: str, value):
+        """Establece un valor en el estado temporal de un jugador."""
+        if player_id in self.state:
+            self.state[player_id][key] = value
+
+    def get_rasg_by_player_id(self, player_id: str) -> RoleAssignment:
+        """Devuelve el RoleAssignment del jugador dado."""
+        return self.r_asgs.get(player_id, None)
+
     def get_player_by_role_name(self, role_name: str) -> List[Player]:
         """Devuelve lista de jugadores que actualmente tienen un Role con name == role_name y están vivos."""
         result = []
@@ -221,6 +234,15 @@ class NightEngine(RoleEffectsMixin):
             "by": killed_by_pid,
             "reason": reason
         })
+    
+    def append_private_info(self, player_id: str, message: str):
+        """Añade un mensaje privado al jugador."""
+        if player_id in self.private_info:
+            self.private_info[player_id].append(message)
+    
+    def append_night_event(self, event: Dict):
+        """Añade un evento público de noche."""
+        self.night_events.append(event)
 
     # -------------------------------------------------------
     #           ⚙️ RESOLVER TODA LA NOCHE

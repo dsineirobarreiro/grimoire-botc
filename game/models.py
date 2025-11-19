@@ -133,6 +133,8 @@ class RoleAssignment(models.Model):
     )
 
     is_poisoned = models.BooleanField(default=False)
+    is_red_herring = models.BooleanField(default=False)
+    died_at_night = models.BooleanField(default=False)
 
     def __str__(self):
         return f"{self.player.alias} → {self.role.name}"

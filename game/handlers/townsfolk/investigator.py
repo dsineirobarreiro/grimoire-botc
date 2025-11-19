@@ -26,5 +26,5 @@ def handle_investigator(engine : NightEngine, pid, selection):
     role = random.choice(minions)
     not_player = engine.get_random_player_excluding([player.id, pid])
 
-    engine.private_info[pid].append(f"La prueba indica que {player} o {not_player} podría ser {role.name}.")
-    engine.night_events.append({"type": "investigator_check", "actor": pid, "target": [player.id, not_player.id], "role": role.name, "affected": engine.is_affected(pid)})
+    engine.append_private_info(pid, f"La prueba indica que {player} o {not_player} podría ser {role.name}.")
+    engine.append_night_event({"type": "investigator_check", "actor": pid, "target": [player.id, not_player.id], "role": role.name, "affected": engine.is_affected(pid)})

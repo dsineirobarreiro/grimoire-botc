@@ -21,5 +21,5 @@ def handle_chef(engine : NightEngine, pid, selection):
         # Count pairs of evil players sitting together
         evil_ids = [player.id for player in evil]
 
-    engine.private_info[pid].append(f"Hay {pairs} pareja/as de malos sentados juntos.")
-    engine.night_events.append({"type": "chef_check", "actor": pid, "pairs": pairs, "affected": engine.is_affected(pid)})
+    engine.append_private_info(pid, f"Hay {pairs} pareja/as de malos sentados juntos.")
+    engine.append_night_event({"type": "chef_check", "actor": pid, "pairs": pairs, "affected": engine.is_affected(pid)})
