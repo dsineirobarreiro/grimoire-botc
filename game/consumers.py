@@ -6,7 +6,7 @@ import logging
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 
-from django.utils import timezone
+from asgiref.sync import sync_to_async
 
 from .models import Room, Player, RoleAssignment
 from .engine.engine import NightEngine, GameEngine  # tu motor nocturno (síncrono o asíncrono)
@@ -524,3 +524,77 @@ class RoomConsumer(AsyncJsonWebsocketConsumer):
         r = Room.objects.get(id=room_id)
         r.state = state
         r.save()
+
+class LobbyConsumer(AsyncJsonWebsocketConsumer):
+    async def connect(self):
+        print(self.scope["url_route"]["kwargs"])
+        print(self.scope["url_route"]["kwargs"]["room_code"])
+        self.room_code = self.scope["url_route"]["kwargs"]["room_code"]
+        self.alias = self.scope["url_route"]["kwargs"]['player']
+
+        self.room_group_name = f"room_{self.room_code}"
+
+        # Añadir al grupo
+        await self.channel_layer.group_add(
+            self.room_group_name,
+            self.channel_name
+        )
+
+        await self.accept()
+
+        # Obtener jugador (implementa según tu lógica)
+        player = await self.get_player(self.room_code, self.alias)
+
+        existing_players = await self.get_existing_players(self.room_code)
+
+        await self.send(text_data=json.dumps({
+            "type": "build_grid",
+            "players": existing_players
+        }))
+
+        # Enviar evento a todos
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "player_joined",
+                "player": {
+                    "name": player.alias,
+                }
+            }
+        )
+
+    async def disconnect(self, close_code):
+
+        await self.channel_layer.group_discard(
+            self.room_group_name,
+            self.channel_name
+        )
+
+    # Handler para eventos "player_joined"
+    async def player_joined(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "player_joined",
+            "player": event["player"]
+        }))
+    
+    # Handler para eventos "player_left"
+    async def player_left(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "player_left",
+            "player": event["player"]
+        }))
+
+    @sync_to_async
+    def get_existing_players(self, room_code):
+        room = Room.objects.get(code=room_code)
+        players = Player.objects.filter(room=room)
+        print(players)
+
+        return [{"name": p.alias} for p in players]
+
+    # Puedes adaptar esto a tu sistema
+    @sync_to_async
+    def get_player(self, room_code, alias):
+        room = Room.objects.get(code=room_code)
+        player = Player.objects.get(room=room, alias=alias)
+        return player

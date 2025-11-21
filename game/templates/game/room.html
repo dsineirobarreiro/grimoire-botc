@@ -1,0 +1,46 @@
+{% extends 'game/master.html' %}
+{% load static %}
+{% block head %}
+    <script src="{% static 'game/scripts/lobby.js' %}" defer></script>
+{% endblock %}
+{% block content %}
+<div class="d-flex flex-column justify-content-center align-items-center p-4">
+    <div class="d-flex flex-column justify-content-center align-items-center">
+        <div class="text-secondary">Room code</div>
+    </div>
+    <h1 id="room-code">{{ room.code }}</h1>
+    <div class="d-flex flex-column justify-content-center align-items-center my-5">
+        <div class="text-secondary">Alias</div>
+        <h2 id="player-name">{{player.alias}}</h2>
+    </div>
+    <h6 id="players">Players: </h6>
+</div>
+<div class="container w-75">
+    <div id="players-row" class="row">
+        <!-- las tarjetas se insertan aquí dinámicamente -->
+    </div>
+</div>
+
+<div class="modal fade" id="leaveRoomModal" tabindex="-1" aria-labelledby="exampleModalLabel" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered justify-content-center">
+    <div class="modal-content w-75">
+      <div class="modal-header">
+        <h5 class="modal-title" id="exampleModalLabel">Leave room</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        Are you sure you want to leave the room?
+      </div>
+      <div class="modal-footer justify-content-between">
+        <button type="button" class="btn btn-danger" data-bs-dismiss="modal">No</button>
+        <form method="post" id="confirm_exit">
+            {% csrf_token %}
+            <button type="submit" class="btn btn-success">Yes</button>
+        </form>
+      </div>
+    </div>
+  </div>
+</div>
+
+
+{% endblock %}

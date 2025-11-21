@@ -25,7 +25,7 @@ SECRET_KEY = 'django-insecure--!0e)*c9_271o*%f&nd&_ux_p_tu7**ipf3f7)^uh)-wm#8w@w
 # SECURITY WARNING: don't run with debug turned on in production!
 DEBUG = True
 
-ALLOWED_HOSTS = []
+ALLOWED_HOSTS = ['192.168.1.167', 'localhost', '127.0.0.1']
 
 
 # Application definition
@@ -75,12 +75,8 @@ ASGI_APPLICATION = "botc.asgi.application"
 # Channel layer (Redis)
 CHANNEL_LAYERS = {
     "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [("127.0.0.1", 6379)],
-            # Si usas red gestionada: ("redis://:password@host:port/0",)
-        },
-    },
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    }
 }
 
 
