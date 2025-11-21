@@ -559,6 +559,7 @@ class LobbyConsumer(AsyncJsonWebsocketConsumer):
                 "type": "player_joined",
                 "player": {
                     "name": player.alias,
+                    "ready": player.is_ready
                 }
             }
         )
@@ -570,11 +571,49 @@ class LobbyConsumer(AsyncJsonWebsocketConsumer):
             self.channel_name
         )
 
+    async def receive(self, text_data=None, bytes_data=None):
+        print("Received data:", text_data)
+        text_data = json.loads(text_data)
+        typ = text_data.get("type")
+
+        if typ == "player_ready":
+            player = text_data.get("player")
+
+            # Update player ready status in DB
+            p = await self.get_player(self.room_code, player)
+            p.is_ready = not p.is_ready
+            await sync_to_async(p.save)()
+
+            # Enviar evento a todos
+            await self.channel_layer.group_send(
+                self.room_group_name,
+                {
+                    "type": "player_ready",
+                    "player": {
+                        "name": player,
+                        "ready": p.is_ready
+                    },
+                }
+            )
+
+            players = await self.get_existing_players(self.room_code)
+            if all(p["ready"] for p in players):
+                print("All players are ready! Starting game...")
+
+                # Mandar cambio de estado a todos
+                await self.channel_layer.group_send(
+                    self.room_group_name,
+                    {
+                        "type": "state_change",
+                        "state": "game",
+                    }
+                )
+
     # Handler para eventos "player_joined"
     async def player_joined(self, event):
         await self.send(text_data=json.dumps({
             "type": "player_joined",
-            "player": event["player"]
+            "player": event["player"],
         }))
     
     # Handler para eventos "player_left"
@@ -583,6 +622,20 @@ class LobbyConsumer(AsyncJsonWebsocketConsumer):
             "type": "player_left",
             "player": event["player"]
         }))
+    
+    # Handler para eventos "player_ready"
+    async def player_ready(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "player_ready",
+            "player": event["player"],
+        }))
+
+    # Handler para eventos "state_change"
+    async def state_change(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "state_change",
+            "state": event["state"],
+        }))
 
     @sync_to_async
     def get_existing_players(self, room_code):
@@ -590,7 +643,7 @@ class LobbyConsumer(AsyncJsonWebsocketConsumer):
         players = Player.objects.filter(room=room)
         print(players)
 
-        return [{"name": p.alias} for p in players]
+        return [{"name": p.alias, "ready": p.is_ready} for p in players]
 
     # Puedes adaptar esto a tu sistema
     @sync_to_async

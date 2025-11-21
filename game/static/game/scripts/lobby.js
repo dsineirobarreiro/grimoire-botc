@@ -1,3 +1,29 @@
+const UI = {
+    "lobby": {
+        el: document.getElementById("lobby_ui"),
+        enter: function() {
+            this.el.classList.add("d-block");
+            this.el.classList.remove("d-none");
+        },
+        exit: function() {
+            this.el.classList.add("d-none");
+            this.el.classList.remove("d-block");
+        }
+    },
+    "game": {
+        el: document.getElementById("game_ui"),
+        enter: function() {
+            this.el.classList.add("d-block");
+            this.el.classList.remove("d-none");
+        },
+        exit: function() {
+            this.el.classList.add("d-none");
+            this.el.classList.remove("d-block");
+        }
+    },
+};
+
+let currentState = "lobby";
 
 const roomCode = document.getElementById("room-code").textContent.trim();
 const player = document.getElementById("player-name").textContent.trim();
@@ -33,6 +59,15 @@ ws.onmessage = (event) => {
         removePlayerCard(data.player);
         setPlayerCount(players.size);
     }
+
+    if (data.type === "player_ready") {
+        setPlayerReadyState(data.player);
+    }
+
+    if (data.type === "state_change") {
+        console.log("Game state changed to:", data.state);
+        setUIState(data.state);
+    }
 };
 
 function addPlayerCard(player) {
@@ -44,7 +79,7 @@ function addPlayerCard(player) {
 
     // Crear tarjeta Bootstrap
     col.innerHTML = `
-        <div class="card">
+        <div class="card border-danger" id="${player.name}_card">
             <!--img src="..." class="card-img-top" alt="..."-->
             <img src="" class="card-img-top"></img>
             <div class="card-body">
@@ -52,6 +87,12 @@ function addPlayerCard(player) {
             </div>
         </div>
     `;
+
+    const player_card = col.querySelector(".card");
+    if (player.ready) {
+        player_card.classList.remove("border-danger");
+        player_card.classList.add("border-success");
+    }
 
     players.set(player.name, col);
     playersRow.appendChild(col);
@@ -66,6 +107,38 @@ function removePlayerCard(player) {
     const col = document.getElementById(`${player.name}`);
     if (col) col.remove();
     players.delete(player.name);
+}
+
+function setPlayerReadyState(player_ready) {
+    const card = document.getElementById(`${player_ready.name}_card`);
+    card.classList.remove(player_ready.ready ? "border-danger" : "border-success");
+    card.classList.add(player_ready.ready ? "border-success" : "border-danger");
+
+    const btn = document.getElementById("ready-btn");
+    if (player_ready.name === player) {
+        isReady = player_ready.ready;
+        if (isReady) {
+            btn.textContent = "Ready";
+            btn.classList.remove("btn-danger");
+            btn.classList.add("btn-success");
+        } else {
+            btn.textContent = "Not ready";
+            btn.classList.remove("btn-success");
+            btn.classList.add("btn-danger");
+        }
+    }
+}
+
+function setUIState(newState) {
+    if (currentState === newState) return;
+
+    // Apaga la UI anterior
+    UI[currentState].exit();
+
+    // Enciende la nueva
+    UI[newState].enter();
+
+    currentState = newState;
 }
 
 document.addEventListener("DOMContentLoaded", () => {
@@ -84,6 +157,13 @@ document.addEventListener("DOMContentLoaded", () => {
             // Acción al pulsar atrás
             showLeaveRoomModal();
         }
+    });
+
+    document.getElementById("ready-form").addEventListener("submit", function (event) {
+        event.preventDefault();  // <-- Bloquea el envío tradicional
+
+        // Enviar estado al servidor si es necesario
+        ws.send(JSON.stringify({ type: "player_ready", player: player }));
     });
 });
 
