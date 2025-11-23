@@ -1,5 +1,5 @@
 const UI = {
-    "lobby": {
+    "WAITING": {
         el: document.getElementById("lobby_ui"),
         enter: function() {
             this.el.classList.add("d-block");
@@ -10,8 +10,19 @@ const UI = {
             this.el.classList.remove("d-block");
         }
     },
-    "game": {
-        el: document.getElementById("game_ui"),
+    "ASSIGNING_ROLES": {
+        el: document.getElementById("assigning_roles_ui"),
+        enter: function() {
+            this.el.classList.add("d-block");
+            this.el.classList.remove("d-none");
+        },
+        exit: function() {
+            this.el.classList.add("d-none");
+            this.el.classList.remove("d-block");
+        }
+    },
+    "ROLE": {
+        el: document.getElementById("roles_ui"),
         enter: function() {
             this.el.classList.add("d-block");
             this.el.classList.remove("d-none");
@@ -23,7 +34,7 @@ const UI = {
     },
 };
 
-let currentState = "lobby";
+let currentState = null;
 
 const roomCode = document.getElementById("room-code").textContent.trim();
 const player = document.getElementById("player-name").textContent.trim();
@@ -67,6 +78,10 @@ ws.onmessage = (event) => {
     if (data.type === "state_change") {
         console.log("Game state changed to:", data.state);
         setUIState(data.state);
+    }
+
+    if (data.type === "role_assigned") {
+        setRole(data.role);
     }
 };
 
@@ -131,14 +146,25 @@ function setPlayerReadyState(player_ready) {
 
 function setUIState(newState) {
     if (currentState === newState) return;
+    console.log(`Cambiando UI de ${currentState} a ${newState}`);
+
 
     // Apaga la UI anterior
-    UI[currentState].exit();
+    if (currentState) UI[currentState].exit();
 
     // Enciende la nueva
     UI[newState].enter();
 
     currentState = newState;
+}
+
+function setRole(role) {
+    const roleTitle = document.getElementById("role-name");
+    const img = document.getElementById("role-img");
+    const roleDesc = document.getElementById("role-desc");
+
+    roleTitle.innerText = role["name"];
+    img.setAttribute("src", role["image"]);
 }
 
 document.addEventListener("DOMContentLoaded", () => {

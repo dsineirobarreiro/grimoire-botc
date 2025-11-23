@@ -12,11 +12,11 @@ logger = logging.getLogger(__name__)
 
 class GameEngine:
 
-    def __init__(self, room: Room):
+    def __init__(self, room: Room, script, players, roles):
         self.room = room
-        self.script = room.script
-        self.players = list(room.player_order.all())
-        self.roles = list(self.script.roles.all())
+        self.script = script
+        self.players = players
+        self.roles = roles
 
     # ---------------------------------------------------------
     # 1. ASIGNACIÓN DE ROLES
@@ -73,26 +73,43 @@ class GameEngine:
             + selected_demons
         )
 
+        good_side = (selected_townsfolk + selected_outsiders)
+        evil_side = (selected_minions + selected_demons)
+
+        print(final_roles)
+
         # -----------------------------------------------------
         # 4. Aplicar BARON (añade +2 outsiders, -2 townsfolk)
         # -----------------------------------------------------
-        has_baron = any(r.name == "Baron" for r in self.roles)
+        has_baron = any(r.name == "Baron" for r in final_roles)
 
         if has_baron:
             # elegir un Townsfolk para reemplazarlo
             towns_removed = random.sample(selected_townsfolk, 2)
+            print(towns_removed)
             final_roles.remove(towns_removed)
 
             outsider_reminder = [r for r in outsider_roles if r not in selected_outsiders]
             final_roles.append(random.sample(outsider_reminder, 2))
+        
+        # -----------------------------------------------------
+        # 5. Aplicar Red Herring
+        # -----------------------------------------------------
+        has_fortune_teller = any(r.name == "Fortune Teller" for r in final_roles)
+
+        red_herring = None
+        if has_fortune_teller:
+            # elegir un Goodside para ser red herring
+            red_herring = random.choice(selected_townsfolk)
 
         # -----------------------------------------------------
-        # 5. Asignar roles a los jugadores en DB
+        # 6. Asignar roles a los jugadores en DB
         # -----------------------------------------------------
         random.shuffle(final_roles)
 
         with transaction.atomic():
             for player, role in zip(self.players, final_roles):
+                player = Player.objects.get(id=player)
                 player.is_alive = True
                 player.save()
 
@@ -108,6 +125,14 @@ class GameEngine:
                     new_townsfolk = random.choice(townsfolk_reminder)
                     role_assignment.drunk_real_role = new_townsfolk
                     role_assignment.save()
+                
+                if red_herring and role == red_herring:
+                    role_assignment.is_red_herring = True
+                    role_assignment.save()
+        
+        self.room.state = "ROLE"
+        self.room.save()
+
 
 
     # ---------------------------------------------------------

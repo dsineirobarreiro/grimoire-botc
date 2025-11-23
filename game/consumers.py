@@ -6,6 +6,8 @@ import logging
 from channels.generic.websocket import AsyncJsonWebsocketConsumer
 from channels.db import database_sync_to_async
 
+from django.templatetags.static import static
+
 from asgiref.sync import sync_to_async
 
 from .models import Room, Player, RoleAssignment
@@ -552,6 +554,12 @@ class LobbyConsumer(AsyncJsonWebsocketConsumer):
             "players": existing_players
         }))
 
+        room = await sync_to_async(Room.objects.get)(code=self.room_code)
+        await self.send(text_data=json.dumps({
+            "type": "state_change",
+            "state": room.state,
+        }))
+
         # Enviar evento a todos
         await self.channel_layer.group_send(
             self.room_group_name,
@@ -561,6 +569,18 @@ class LobbyConsumer(AsyncJsonWebsocketConsumer):
                     "name": player.alias,
                     "ready": player.is_ready
                 }
+            }
+        )
+
+        # Mostrar el rol
+        player = await self.get_player(self.room_code, self.alias)
+        role_assignment = await self.get_role_assignment(player)
+        role_info = await self.get_role_info(role_assignment)
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "role_assigned",
+                "role": role_info
             }
         )
 
@@ -598,16 +618,8 @@ class LobbyConsumer(AsyncJsonWebsocketConsumer):
 
             players = await self.get_existing_players(self.room_code)
             if all(p["ready"] for p in players):
-                print("All players are ready! Starting game...")
-
-                # Mandar cambio de estado a todos
-                await self.channel_layer.group_send(
-                    self.room_group_name,
-                    {
-                        "type": "state_change",
-                        "state": "game",
-                    }
-                )
+                # TODO: solo el host hace esto
+                await self.assign_roles()
 
     # Handler para eventos "player_joined"
     async def player_joined(self, event):
@@ -636,6 +648,69 @@ class LobbyConsumer(AsyncJsonWebsocketConsumer):
             "type": "state_change",
             "state": event["state"],
         }))
+    
+    # Handler para eventos "role_assigned"
+    async def role_assigned(self, event):
+        await self.send(text_data=json.dumps({
+            "type": "role_assigned",
+            "role": event["role"]
+        }))
+
+    async def assign_roles(self):
+        print("All players are ready! Starting game...")
+
+        room = await sync_to_async(Room.objects.get)(code=self.room_code)
+        room.state = "ASSIGNING_ROLES"
+        players = await sync_to_async(list)(room.players.all())
+        room.player_order = [str(p.id) for p in players]
+        await sync_to_async(room.save)()
+
+        # Mandar cambio de estado a todos
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "state_change",
+                "state": "ASSIGNING_ROLES",
+            }
+        )
+
+        await asyncio.sleep(0)
+
+        asyncio.create_task(self._continue_assign_roles(room))
+    
+    async def _continue_assign_roles(self, room : Room):
+        print("Assigning roles...")
+        await asyncio.sleep(2)
+
+        roles = await sync_to_async(lambda: list(room.script.roles.all()))()
+
+        self.game_engine = GameEngine(room, room.script, room.player_order, roles)
+
+        # Esto puede ser pesado — por eso lo movemos al background task
+        await database_sync_to_async(self.game_engine.assign_roles)()
+
+        # Mandar cambio de estado a todos
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "state_change",
+                "state": "ROLES",
+            }
+        )
+
+
+        # Mostrar el rol
+        player = await self.get_player(self.room_code, self.alias)
+        role_assignment = await self.get_role_assignment(player)
+        role_info = await self.get_role_info(role_assignment)
+        await self.channel_layer.group_send(
+            self.room_group_name,
+            {
+                "type": "role_assigned",
+                "role": role_info
+            }
+        )
+
 
     @sync_to_async
     def get_existing_players(self, room_code):
@@ -645,9 +720,21 @@ class LobbyConsumer(AsyncJsonWebsocketConsumer):
 
         return [{"name": p.alias, "ready": p.is_ready} for p in players]
 
-    # Puedes adaptar esto a tu sistema
     @sync_to_async
     def get_player(self, room_code, alias):
         room = Room.objects.get(code=room_code)
         player = Player.objects.get(room=room, alias=alias)
         return player
+    
+    @sync_to_async
+    def get_role_assignment(self, player):
+        role_assignment = RoleAssignment.objects.get(player=player)
+        return role_assignment
+    
+    @sync_to_async
+    def get_role_info(self, role_assignment : RoleAssignment):
+        role = role_assignment.role  # esta parte ya es segura
+        return {
+            "name": role.name,
+            "image": static(role.image_path),
+        }

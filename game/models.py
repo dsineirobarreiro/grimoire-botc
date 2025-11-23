@@ -19,6 +19,8 @@ class Role(models.Model):
     name = models.CharField(max_length=100, unique=True)
     alignment = models.CharField(max_length=20, choices=ALIGNMENTS)
 
+    image_path = models.CharField(max_length=128, blank=True)
+
     # Useful metadata for engine
     first_night = models.BooleanField(default=False)
     other_night = models.BooleanField(default=False)
@@ -27,6 +29,11 @@ class Role(models.Model):
 
     # Optional priority within a night (explicit override)
     night_priority = models.IntegerField(null=True, blank=True)
+
+    @property
+    def image_url(self):
+        from django.templatetags.static import static
+        return static(self.image_path)
 
     def __str__(self):
         return f"{self.name} ({self.alignment})"
@@ -57,6 +64,7 @@ class Room(models.Model):
     GAME_STATES = [
         ("WAITING", "Waiting for players"),
         ("ASSIGNING_ROLES", "Assigning roles"),
+        ("ROLE", "Showing roles"),
         ("FIRST_NIGHT", "First night"),
         ("NIGHT", "Night"),
         ("DAY_DISCUSSION", "Day discussion"),
